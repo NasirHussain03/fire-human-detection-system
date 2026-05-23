@@ -16,6 +16,9 @@ ENV HOME=/home/user \
 
 WORKDIR $HOME/app
 
+# Ensure Python output is not buffered (so logs appear in HF dashboard immediately)
+ENV PYTHONUNBUFFERED=1
+
 # Copy requirements and install
 COPY --chown=1000 requirements.txt .
 
@@ -30,5 +33,5 @@ COPY --chown=1000 . $HOME/app
 ENV PORT=7860
 EXPOSE 7860
 
-# Run the app using gunicorn (binds to 0.0.0.0:7860, timeout 120s for ML model loading)
-CMD ["gunicorn", "--bind", "0.0.0.0:7860", "--timeout", "120", "app:app"]
+# Run the app using gunicorn with preload so TF/YOLO load once in master, not per-worker
+CMD ["gunicorn", "--bind", "0.0.0.0:7860", "--timeout", "300", "--workers", "1", "--preload", "app:app"]
