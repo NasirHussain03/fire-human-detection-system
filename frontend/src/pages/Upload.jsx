@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from 'react'
 import { Upload as UploadIcon, Image, Film, X, Loader, AlertCircle } from 'lucide-react'
-import { detectImage, detectVideo } from '../lib/api'
+import { detectImage, detectVideo, API_URL } from '../lib/api'
 import DetectionResult from '../components/DetectionResult'
 
 const ACCEPT = { image: '.jpg,.jpeg,.png,.bmp,.webp', video: '.mp4,.avi,.mov,.mkv,.webm' }
@@ -35,7 +35,7 @@ export default function Upload() {
       const res = await fn(file, setProgress)
       setResult(res.data)
     } catch (err) {
-      setError(err.response?.data?.error ?? 'Detection failed. Is the backend running on port 5000?')
+      setError(err.response?.data?.error ?? `Detection failed. Ensure the backend is running at ${API_URL || 'port 5000'}.`)
     } finally { setLoading(false) }
   }
 

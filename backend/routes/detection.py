@@ -136,6 +136,10 @@ class CameraStream:
 
     def start(self):
         print("[CameraStream] Opening webcam (index 0)...")
+        import platform
+        if platform.system() == "Linux" and not os.path.exists("/dev/video0"):
+            print("[CameraStream] No video device /dev/video0 found on Linux. Streaming webcam is disabled.")
+            return False
         self.cap = cv2.VideoCapture(0)
         if not self.cap.isOpened():
             print("[CameraStream] Failed to open webcam.")

@@ -111,9 +111,13 @@ export default function LiveMonitoring() {
             </div>
 
             <div className="card" style={{ padding: '20px' }}>
-              <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>Note</p>
+              <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>Deployment Notice</p>
               <p style={{ fontSize: 13, color: 'var(--text-2)', lineHeight: 1.65 }}>
-                Requires a webcam connected to the server and the Flask backend running on port 5000.
+                {!API_URL || API_URL.includes('localhost') || API_URL.includes('127.0.0.1') ? (
+                  "The application is running locally. Click 'Start Stream' to stream from your local webcam (index 0) using the backend."
+                ) : (
+                  "Cloud deployment note: Backend-based webcam streaming is only supported when running the backend locally. Because cloud servers (like Hugging Face Spaces) run on remote servers, they cannot access your computer's local camera. To test live monitoring, run the backend on your local machine."
+                )}
               </p>
             </div>
           </div>

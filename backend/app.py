@@ -10,8 +10,8 @@ app = Flask(__name__)
 CORS(app)
 
 # MongoDB
-client = MongoClient(os.getenv("MONGO_URI"))
-db     = client["fire_detection"]
+# client = MongoClient(os.getenv("MONGO_URI"))
+# db     = client["fire_detection"]
 
 # Config
 app.config["UPLOAD_FOLDER"] = os.getenv("UPLOAD_FOLDER", "uploads")
@@ -30,9 +30,16 @@ app.register_blueprint(health_bp)
 app.register_blueprint(detection_bp, url_prefix="/api/detect")
 
 
+from flask import send_from_directory
+
 @app.route("/")
 def home():
     return {"message": "Fire Detection API Running"}
+
+
+@app.route("/outputs/<path:filename>")
+def get_output_file(filename):
+    return send_from_directory(app.config["OUTPUT_FOLDER"], filename)
 
 
 if __name__ == "__main__":

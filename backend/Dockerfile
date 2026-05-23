@@ -8,17 +8,23 @@ RUN apt-get update && apt-get install -y \
     libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /app
+# Set up user 1000 for Hugging Face security compatibility
+RUN useradd -m -u 1000 user
+USER user
+ENV HOME=/home/user \
+    PATH=/home/user/.local/bin:$PATH
+
+WORKDIR $HOME/app
 
 # Copy requirements and install
-COPY requirements.txt .
+COPY --chown=1000 requirements.txt .
 
-# Install gunicorn for production WSGI server
-RUN pip install --no-cache-dir gunicorn
-RUN pip install --no-cache-dir -r requirements.txt
+# Install gunicorn and requirements as user 1000
+RUN pip install --no-cache-dir --user gunicorn
+RUN pip install --no-cache-dir --user -r requirements.txt
 
-# Copy backend files
-COPY . .
+# Copy backend files with correct ownership
+COPY --chown=1000 . $HOME/app
 
 # Expose port (Hugging Face Spaces expects the app to listen on port 7860)
 ENV PORT=7860

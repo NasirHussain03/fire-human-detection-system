@@ -1,4 +1,5 @@
 import { Flame, Users, ShieldAlert, CheckCircle, AlertTriangle } from 'lucide-react'
+import { API_URL } from '../lib/api'
 
 const statusCfg = {
   'HIGH RISK':       { bg: 'rgba(239,68,68,0.1)',  border: 'rgba(239,68,68,0.3)',  text: '#EF4444', dot: '#EF4444'  },
@@ -67,12 +68,18 @@ export default function DetectionResult({ result, outputFile }) {
 
       {/* Output file */}
       {outputFile && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', borderRadius: 10,
-                      background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.2)' }}>
-          <CheckCircle size={14} color="#3B82F6" />
-          <p style={{ fontSize: 12, color: '#93C5FD' }}>
-            Annotated output saved: <code style={{ fontFamily: 'monospace' }}>{outputFile}</code>
-          </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', borderRadius: 10,
+                        background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.2)' }}>
+            <CheckCircle size={14} color="#3B82F6" />
+            <p style={{ fontSize: 12, color: '#93C5FD' }}>
+              Annotated output saved: <code style={{ fontFamily: 'monospace' }}>{outputFile}</code>
+            </p>
+          </div>
+          <div style={{ borderRadius: 12, overflow: 'hidden', border: '1px solid var(--border)', background: 'var(--bg-card)' }}>
+            <img src={`${API_URL}/outputs/${outputFile}`} alt="Annotated detection output"
+                 style={{ width: '100%', maxHeight: 400, objectFit: 'contain', display: 'block' }} />
+          </div>
         </div>
       )}
     </div>
