@@ -6,17 +6,12 @@ Exposes a single predict(frame) → (is_fire: bool, confidence: float)
 """
 
 import os
-import numpy as np
-import cv2
-import tensorflow as tf
-from tensorflow.keras.models import load_model
 
-# Suppress TF oneDNN noise
+# Suppress TF oneDNN noise (set before TF is imported)
 os.environ.setdefault("TF_ENABLE_ONEDNN_OPTS", "0")
 os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
-
-BASE_DIR   = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-MODEL_PATH = os.environ.get("MODEL_PATH", os.path.join(BASE_DIR, "models", "fire_classifier.h5"))
+os.environ.setdefault("GRPC_VERBOSITY", "ERROR")
+os.environ.setdefault("GLOG_minloglevel", "2")
 
 IMG_SIZE        = (128, 128)
 FIRE_THRESHOLD  = 0.5          # sigmoid threshold
@@ -36,24 +31,32 @@ class FireDetector:
     def load(self):
         if self._loaded:
             return
+        # Lazy import heavy dependencies so Gunicorn can boot without waiting for TF
+        import numpy as _np
+        import cv2 as _cv2
+        from tensorflow.keras.models import load_model as _load_model
+        self._np  = _np
+        self._cv2 = _cv2
+        BASE_DIR   = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        MODEL_PATH = os.environ.get("MODEL_PATH", os.path.join(BASE_DIR, "models", "fire_classifier.h5"))
         if not os.path.exists(MODEL_PATH):
             raise FileNotFoundError(
                 f"Fire model not found at: {MODEL_PATH}\n"
                 "Run models/train_fire_model.py first."
             )
         print(f"[FireDetector] Loading model from {MODEL_PATH}")
-        self.model = load_model(MODEL_PATH)
+        self.model = _load_model(MODEL_PATH)
         self._loaded = True
         print("[FireDetector] Model loaded successfully.")
 
     # ─────────────────────────────────────────
-    def preprocess(self, frame: np.ndarray) -> np.ndarray:
+    def preprocess(self, frame) -> 'numpy.ndarray':
         """BGR frame (OpenCV) → normalised tensor (1, H, W, 3)."""
-        rgb   = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        resized = cv2.resize(rgb, IMG_SIZE)
-        return np.expand_dims(resized.astype("float32") / 255.0, axis=0)
+        rgb     = self._cv2.cvtColor(frame, self._cv2.COLOR_BGR2RGB)
+        resized = self._cv2.resize(rgb, IMG_SIZE)
+        return self._np.expand_dims(resized.astype("float32") / 255.0, axis=0)
 
-    def predict(self, frame: np.ndarray) -> tuple[bool, float]:
+    def predict(self, frame) -> tuple:
         """
         Parameters
         ----------

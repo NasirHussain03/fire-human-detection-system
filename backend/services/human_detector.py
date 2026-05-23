@@ -13,11 +13,10 @@ Exposes:
 
 import os
 import numpy as np
-from ultralytics import YOLO
 
-YOLO_MODEL      = "yolov8n.pt"   # nano — fastest; swap for yolov8s/m for better accuracy
 PERSON_CLASS_ID = 0
-CONF_THRESHOLD  = 0.40           # minimum confidence to count as a person
+CONF_THRESHOLD  = 0.40
+YOLO_MODEL      = "yolov8n.pt"
 
 
 class HumanDetector:
@@ -34,13 +33,15 @@ class HumanDetector:
     def load(self):
         if self._loaded:
             return
+        # Lazy import so Gunicorn can boot without waiting for Ultralytics/YOLO init
+        from ultralytics import YOLO as _YOLO
         print(f"[HumanDetector] Loading YOLOv8 model ({YOLO_MODEL})...")
-        self.model = YOLO(YOLO_MODEL)   # auto-downloads on first use
+        self.model = _YOLO(YOLO_MODEL)
         self._loaded = True
         print("[HumanDetector] YOLO model ready.")
 
     # ─────────────────────────────────────────
-    def detect(self, frame: np.ndarray) -> list[dict]:
+    def detect(self, frame) -> list:
         """
         Parameters
         ----------
