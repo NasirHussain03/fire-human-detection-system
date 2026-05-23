@@ -15,8 +15,8 @@ from tensorflow.keras.models import load_model
 os.environ.setdefault("TF_ENABLE_ONEDNN_OPTS", "0")
 os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
 
-BASE_DIR   = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-MODEL_PATH = os.path.join(BASE_DIR, "models", "fire_classifier.h5")
+BASE_DIR   = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+MODEL_PATH = os.environ.get("MODEL_PATH", os.path.join(BASE_DIR, "models", "fire_classifier.h5"))
 
 IMG_SIZE        = (128, 128)
 FIRE_THRESHOLD  = 0.5          # sigmoid threshold
