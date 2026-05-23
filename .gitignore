@@ -1,0 +1,42 @@
+# Root .gitignore for Fire-Human Detection System
+
+# Virtual environments
+venv/
+backend/venv/
+.venv/
+env/
+
+# Node dependencies
+node_modules/
+frontend/node_modules/
+
+# Local configuration and credentials
+.env
+backend/.env
+frontend/.env
+*.local
+
+# Media uploads and output directories
+uploads/
+outputs/
+backend/uploads/
+backend/outputs/
+frontend/dist/
+frontend/build/
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Deployment cloned subfolders
+fire-detection-backend/
+
+# Temporary and local developer files
+copy_to_hf.ps1
+.vscode/
+.idea/
+*.log
+.DS_Store
+Thumbs.db
