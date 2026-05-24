@@ -14,9 +14,12 @@ Exposes:
 import os
 import numpy as np
 
+# Force offline mode for ultralytics to prevent update checks or remote downloads hanging
+os.environ["ULTRALYTICS_OFFLINE"] = "True"
+os.environ["YOLO_OFFLINE"] = "True"
+
 PERSON_CLASS_ID = 0
 CONF_THRESHOLD  = 0.40
-YOLO_MODEL      = "yolov8n.pt"
 
 
 class HumanDetector:
@@ -33,10 +36,17 @@ class HumanDetector:
     def load(self):
         if self._loaded:
             return
+        
         # Lazy import so Gunicorn can boot without waiting for Ultralytics/YOLO init
+        import os
+        os.environ["ULTRALYTICS_OFFLINE"] = "True"
+        os.environ["YOLO_OFFLINE"] = "True"
         from ultralytics import YOLO as _YOLO
-        print(f"[HumanDetector] Loading YOLOv8 model ({YOLO_MODEL})...")
-        self.model = _YOLO(YOLO_MODEL)
+        
+        BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        model_path = os.path.join(BASE_DIR, "yolov8n.pt")
+        print(f"[HumanDetector] Loading YOLOv8 model from {model_path}...")
+        self.model = _YOLO(model_path)
         self._loaded = True
         print("[HumanDetector] YOLO model ready.")
 
