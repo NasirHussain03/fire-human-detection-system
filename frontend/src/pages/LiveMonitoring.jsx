@@ -1,32 +1,132 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Monitor, Play, StopCircle, Wifi, WifiOff, Camera } from 'lucide-react'
-import { API_URL } from '../lib/api'
+import { API_URL, detectImage } from '../lib/api'
+import { StatusBadge } from '../components/DetectionResult'
 
 export default function LiveMonitoring() {
   const [streaming, setStreaming] = useState(false)
   const [error, setError]         = useState(null)
-  const imgRef = useRef()
+  const [result, setResult]       = useState(null)
 
-  const start = () => {
-    setError(null); setStreaming(true)
-    if (imgRef.current) {
-      imgRef.current.src = `${API_URL}/api/detect/stream?t=${Date.now()}`
-      imgRef.current.onerror = () => {
-        setError('Cannot connect to stream. Ensure the backend is running and a webcam is connected.')
-        setStreaming(false)
+  const videoRef = useRef(null)
+  const canvasRef = useRef(null)
+  const imgRef = useRef(null)
+  const streamRef = useRef(null)
+  const loopRef = useRef(null)
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (loopRef.current) clearTimeout(loopRef.current)
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop())
       }
+    }
+  }, [])
+
+  const start = async () => {
+    setError(null)
+    setResult(null)
+    try {
+      console.log("[LiveMonitoring] Requesting webcam access...")
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 640 }, height: { ideal: 360 } }
+      })
+      streamRef.current = stream
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream
+        videoRef.current.play()
+      }
+      setStreaming(true)
+      console.log("[LiveMonitoring] Webcam stream active.")
+    } catch (err) {
+      console.error(err)
+      setError('Cannot access webcam. Please ensure camera permissions are granted.')
     }
   }
 
-  const stop = async () => {
-    if (imgRef.current) imgRef.current.src = ''
+  // Effect to manage processing loop when streaming state changes
+  useEffect(() => {
+    if (streaming) {
+      // Small delay to allow webcam to warm up
+      loopRef.current = setTimeout(processFrameLoop, 500)
+    } else {
+      if (loopRef.current) {
+        clearTimeout(loopRef.current)
+        loopRef.current = null
+      }
+    }
+  }, [streaming])
+
+  const processFrameLoop = () => {
+    if (!videoRef.current || !canvasRef.current || !imgRef.current) return
+
+    const video = videoRef.current
+    const canvas = canvasRef.current
+    const ctx = canvas.getContext('2d')
+
+    if (video.readyState === video.HAVE_ENOUGH_DATA) {
+      // Draw video frame to hidden canvas
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+      
+      // Convert frame to Blob and upload
+      canvas.toBlob(async (blob) => {
+        if (!blob) {
+          loopRef.current = setTimeout(processFrameLoop, 100)
+          return
+        }
+
+        try {
+          const file = new File([blob], 'webcam.jpg', { type: 'image/jpeg' })
+          const res = await detectImage(file)
+          
+          if (res.data && res.data.success) {
+            setResult(res.data)
+            if (imgRef.current) {
+              imgRef.current.src = `${API_URL}/outputs/${res.data.output_file}?t=${Date.now()}`
+            }
+          }
+        } catch (err) {
+          console.error('[LiveMonitoring] Error sending frame to detection API:', err)
+        }
+
+        // Schedule next frame processing
+        // We do this sequentially to prevent overloading the server with requests
+        loopRef.current = setTimeout(processFrameLoop, 200)
+      }, 'image/jpeg', 0.7)
+    } else {
+      // Webcam feed is active but frame is not ready yet
+      loopRef.current = setTimeout(processFrameLoop, 100)
+    }
+  }
+
+  const stop = () => {
     setStreaming(false)
-    try { await fetch(`${API_URL}/api/detect/stream/stop`, { method: 'POST' }) } catch (_) {}
+    setResult(null)
+    if (loopRef.current) {
+      clearTimeout(loopRef.current)
+      loopRef.current = null
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop())
+      streamRef.current = null
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null
+    }
+    if (imgRef.current) {
+      imgRef.current.src = ''
+    }
+    console.log("[LiveMonitoring] Webcam stream stopped.")
   }
 
   return (
     <div className="page" style={{ background: 'var(--bg)' }}>
       <div className="container">
+
+        {/* Hidden video and canvas elements for webcam capture */}
+        <video ref={videoRef} style={{ display: 'none' }} playsInline muted />
+        <canvas ref={canvasRef} style={{ display: 'none' }} width={640} height={360} />
 
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 40 }}>
@@ -52,14 +152,13 @@ export default function LiveMonitoring() {
             <div style={{
               position: 'relative', borderRadius: 16, overflow: 'hidden',
               background: 'var(--bg-card)', border: '1px solid var(--border)',
-              aspectRatio: '16/9',
+              aspectRatio: '16/9', display: 'flex', alignItems: 'center', justifyContent: 'center'
             }}>
-              <img ref={imgRef} alt="Live feed" style={{ width:'100%', height:'100%', objectFit:'contain', display: streaming ? 'block' : 'none' }} />
+              <img ref={imgRef} alt="Live feed" style={{ width:'100%', height:'100%', objectFit:'contain', display: (streaming && result) ? 'block' : 'none' }} />
 
               {/* Offline placeholder */}
               {!streaming && (
-                <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
-                              alignItems: 'center', justifyContent: 'center', gap: 12 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
                   <div style={{ width: 64, height: 64, borderRadius: 20, background: 'var(--bg-raised)',
                                 border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <Camera size={28} color="var(--text-3)" />
@@ -68,8 +167,18 @@ export default function LiveMonitoring() {
                 </div>
               )}
 
+              {/* Loading / initializing placeholder */}
+              {streaming && !result && (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, padding: 24, textAlign: 'center' }}>
+                  <div className="pulse-dot" style={{ width: 12, height: 12, borderRadius: '50%', background: '#EF4444' }} />
+                  <p style={{ fontSize: 14, color: 'var(--text-2)', maxWidth: 320 }}>
+                    Initializing camera feed & preloading remote AI models. This may take up to 10 seconds...
+                  </p>
+                </div>
+              )}
+
               {/* LIVE badge */}
-              {streaming && (
+              {streaming && result && (
                 <div style={{ position: 'absolute', top: 14, left: 14, display: 'flex', alignItems: 'center', gap: 6,
                               padding: '5px 12px', borderRadius: 99, background: 'rgba(239,68,68,0.9)' }}>
                   <span className="pulse-dot" style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff', display: 'block' }} />
@@ -96,9 +205,36 @@ export default function LiveMonitoring() {
 
           {/* Info panel */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {/* Real-time stats display */}
+            {result && (
+              <div className="card" style={{ padding: '20px', border: '1px solid var(--border)' }}>
+                <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 14 }}>
+                  Current Detection
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 13, color: 'var(--text-2)' }}>Status:</span>
+                    <StatusBadge status={result.status} size="sm" />
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 13, color: 'var(--text-2)' }}>Fire Conf:</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: result.fire_detected ? '#EF4444' : '#22C55E' }}>
+                      {(result.fire_confidence * 100).toFixed(1)}%
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 13, color: 'var(--text-2)' }}>People:</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: result.person_count > 0 ? '#F59E0B' : 'var(--text)' }}>
+                      {result.person_count}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="card" style={{ padding: '20px' }}>
               <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>Pipeline</p>
-              {['Capture frame (OpenCV)', 'CNN fire prediction', 'YOLOv8 person detection', 'Decision engine', 'Annotate & stream MJPEG'].map((step, i) => (
+              {['Capture frame (Browser)', 'CNN fire prediction (Cloud)', 'YOLOv8 person detection (Cloud)', 'Decision engine (Cloud)', 'Render annotated frame'].map((step, i) => (
                 <div key={step} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: i < 4 ? 14 : 0 }}>
                   <div style={{ width: 22, height: 22, borderRadius: 7, background: 'var(--bg-raised)',
                                 border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -111,13 +247,9 @@ export default function LiveMonitoring() {
             </div>
 
             <div className="card" style={{ padding: '20px' }}>
-              <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>Deployment Notice</p>
+              <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>Deployment Status</p>
               <p style={{ fontSize: 13, color: 'var(--text-2)', lineHeight: 1.65 }}>
-                {!API_URL || API_URL.includes('localhost') || API_URL.includes('127.0.0.1') ? (
-                  "The application is running locally. Click 'Start Stream' to stream from your local webcam (index 0) using the backend."
-                ) : (
-                  "Cloud deployment note: Backend-based webcam streaming is only supported when running the backend locally. Because cloud servers (like Hugging Face Spaces) run on remote servers, they cannot access your computer's local camera. To test live monitoring, run the backend on your local machine."
-                )}
+                Webcam frames are captured client-side and sent directly to the Hugging Face Space backend (CPU) for inference. This allows real-time live monitoring to work securely and natively from any browser.
               </p>
             </div>
           </div>
