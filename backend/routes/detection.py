@@ -207,16 +207,9 @@ def _gen_frames():
 
 @detection_bp.route("/stream", methods=["GET"])
 def detect_stream():
-    fire_detector.load()
-    human_detector.load()
-    return Response(
-        _gen_frames(),
-        mimetype="multipart/x-mixed-replace; boundary=frame",
-    )
+    return jsonify({"error": "Server-side streaming is disabled. Use client-side browser monitoring."}), 400
 
 
 @detection_bp.route("/stream/stop", methods=["POST"])
 def stop_stream():
-    global _stream_active
-    _stream_active = False
-    return jsonify({"message": "Stream stopped"}), 200
+    return jsonify({"message": "Stream disabled"}), 200

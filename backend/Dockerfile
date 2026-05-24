@@ -33,5 +33,4 @@ COPY --chown=1000 . $HOME/app
 ENV PORT=7860
 EXPOSE 7860
 
-# Run the app using gunicorn with preload so TF/YOLO load once in master, not per-worker
-CMD ["gunicorn", "--bind", "0.0.0.0:7860", "--timeout", "300", "--workers", "1", "--preload", "app:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:7860", "--timeout", "300", "--workers", "1", "--threads", "4", "--worker-class", "gthread", "--preload", "app:app"]
